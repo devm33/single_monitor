@@ -55,7 +55,7 @@ void checkStrerror( int error ){
 
 // Handle SIGINT (aka control-C): cancel FAM monitors
 void sighandler_SIGINT( int sig ){
-	cout << "[exit]" << endl ;
+	cout << endl << "[exit]" << endl ;
 	runFam = false ;
 	return ;
 }
@@ -107,6 +107,7 @@ int main( const int argc , const char** argv ){
 	}
 	
 	//build watch list of archive directories
+	archiveDirs.push_back( &archive );
 	//TODO ^
 	
 	//register the archive directories with fam
@@ -146,7 +147,7 @@ int main( const int argc , const char** argv ){
 			if( fe->code == FAMChanged || fe->code == FAMCreated || fe->code == FAMDeleted ){
 				//update list.txt in req dir //TODO move this to method updateList( listfname, archive )
 				string update( "ls " );
-				update = update + archive + " > " + dropbox + listfname; //TODO concatenate all the different archive dirs together
+				update = update + archive + " > " + request + listfname; //TODO concatenate all the different archive dirs together
 				system( update.c_str() );
 				createsTriggered += 1;
 				cout << createsTriggered << " creates triggered" << endl;
@@ -192,6 +193,7 @@ int main( const int argc , const char** argv ){
 		delete( *ix ) ;
 	}
 
+/*
 	for(
 		DirList::const_iterator iy( dirNames.begin() ) , stop( dirNames.end() ) ;
 		iy != stop ;
@@ -200,7 +202,7 @@ int main( const int argc , const char** argv ){
 		cout << "deleting dir " << (*iy)->c_str() << endl ;
 		delete( *iy ) ;
 	}
-
+*/
 	// disconnect from the FAM service
 	FAMClose( fc ) ;
 	delete( fe ) ;
