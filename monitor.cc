@@ -20,162 +20,164 @@
 #include<string.h>
 extern "C" {
 	#include<errno.h>
-	extern int errno ;
+	extern int errno;
 	#include<fam.h>
 	#include<unistd.h> // access() , sleep()
 	#include<signal.h> // signal()
 }
 using namespace std;
 
-//Local Environment variables
+// Local Environment variables
 string request("/home/devraj/Dropbox/cat-pictures/"); //req dir
 string listfname("list.txt"); //filename for list in req dir
-string archive("/home/devraj/Videos/"); //archive dir
+string archive("/home/devraj/Videos/"); //root archive dir
 
-bool runFam = false ; //global for continuing to listen to fam connection
-FAMConnection* fc = NULL ;
-typedef list< string* > DirList ;
-DirList dirNames ; //global for storing all watched directories for clean up
-typedef list< FAMRequest* > RequestList ;
-RequestList requests ; //global for storing all fam request objs for clean up
-DirList archiveDirs; //global for the archive directories
+// Global program variables
+bool runFam = false; //bool for continuing to listen to fam connection
+FAMConnection* fc = NULL;
+typedef list< string* > DirList;
+DirList dirNames; //list for watched directories for clean up
+typedef list< FAMRequest* > RequestList;
+RequestList requests; //list for fam request objs for clean up
+DirList archiveDirs; //list for the archive directories
+int createsTriggered; //counter for the number of expected create events
 
-
-void addArchiveDirs() {
-//TODO add support for multiple archive dirs
-// really i just want this to be recursive
-}
-
+// System error method
 void checkStrerror( int error ){
 	if( 0 != error ){
-		cerr << '\t' << "System error is: " << strerror( errno ) << endl ;
+		cerr << '\t' << "System error is: " << strerror( errno ) << endl;
 	}
-	return ;
+	return;
 }
 
 // Handle SIGINT (aka control-C): cancel FAM monitors
 void sighandler_SIGINT( int sig ){
-	cout << endl << "[exit]" << endl ;
-	runFam = false ;
-	return ;
+	cout << endl << "[exit]" << endl;
+	runFam = false;
+	return;
 }
 
 // Register a directory with fam
-void register_directory( string* dir ){
-	FAMRequest* fr = new FAMRequest() ;
-	cout << "Registering directory \"" << *dir << "\" with FAM" << endl ;
+void registerDirectory( string* dir ){
+	FAMRequest* fr = new FAMRequest();
+	cout << "Registering directory \"" << *dir << "\" with FAM" << endl;
 	try{
 		if( 0 != access( dir->c_str() , F_OK ) ){
-			throw( runtime_error( "directory access problem" ) ) ;
+			throw( runtime_error( "directory access problem" )  );
 		}
 		if( 0 != FAMMonitorDirectory( fc , dir->c_str() , fr , dir ) ){
-			throw( runtime_error( "problem registering directory with FAM" ) ) ;
+			throw( runtime_error( "problem registering directory with FAM" ) );
 		} else { // store for clean up
-			dirNames.push_back( dir ) ;
-			requests.push_back( fr ) ;
+			dirNames.push_back( dir );
+			requests.push_back( fr );
 		}
 	}catch( const runtime_error& e ){
-		cerr << "Unable to access directory." << endl ;
-		checkStrerror( errno ) ;
-		delete( fr ) ;
-		delete( dir ) ;
+		cerr << "Unable to access directory." << endl;
+		checkStrerror( errno );
+		delete( fr );
+		delete( dir );
 	}
-	return ;
+	return;
 }
 
+// Update the file list in the req dir
+void updateList(){
+	cout << "Updating the file list" << endl;
+	//TODO add note to this file about not changing it manually
+	string update( "ls " );
+	update = update + archive + " > " + request + listfname; //TODO loop through all archive dirs
+	system( update.c_str() );
+	
+	createsTriggered += 1;
+	cout << createsTriggered << " creates triggered" << endl;
+}
 
 int main( const int argc , const char** argv ){
-	// logging
+	// Logging
 	system( "date" );	
 	
-	// register a function to handle SIGINT signals
+	// Register a function to handle SIGINT signals
 	if( SIG_ERR == signal( SIGINT , sighandler_SIGINT ) ){
-		cerr << "Error: Unable to set signal handler for SIGINT (Control-C)" << endl ;
-		return( 1 ) ;
+		cerr << "Error: Unable to set signal handler for SIGINT (Control-C)" << endl;
+		return( 1 );
 	}
 	
-	//FAM vars
-	fc = new FAMConnection() ; //FIXME? what's with the re-def here (defined global?) //XXX did rming that break this?
-	FAMEvent* fe = new FAMEvent() ; // event data is put here.  This pointer will be reused for each event.
+	// FAM vars
+	fc = new FAMConnection();
+	FAMEvent* fe = new FAMEvent(); // Event data is put here.  This pointer will be reused for each event.
 
-	// init FAM connection
+	// Init FAM connection
 	if( 0 != FAMOpen( fc ) ){
-		cerr << "Unable to open FAM connection." << endl ;
-		cerr << "(Hint: make sure FAM (via xinetd) and portmapper are running.)" << endl ;
-		checkStrerror( errno ) ;
-		return( 1 ) ;
+		cerr << "Unable to open FAM connection." << endl;
+		cerr << "(Hint: make sure FAM (via xinetd) and portmapper are running.)" << endl;
+		checkStrerror( errno );
+		return( 1 );
 	}
 	
-	//build watch list of archive directories
+	// Build watch list of archive directories
 	archiveDirs.push_back( &archive );
-	//TODO ^
+	//TODO ^ recursive
 	
-	//register the archive directories with fam
-	for(DirList::const_iterator ix( archiveDirs.begin() ) , stop( archiveDirs.end() ) ; ix != stop ; ++ix){
-		register_directory( reinterpret_cast< string* >( *ix ) );
+	// Register the archive directories with fam
+	for(DirList::const_iterator ix( archiveDirs.begin() ) , stop( archiveDirs.end() ); ix != stop; ++ix){
+		registerDirectory( reinterpret_cast< string* >( *ix ) );
 	}	
 	
-	//register the request dir
+	// Register the request dir
 	if( 1 == argc ){
-		register_directory( &request );
+		cout << "Request directory:" << endl;
+		registerDirectory( &request );
 	}
 	
-	//check to make sure there are connected dirs to monitor
+	// Check to make sure there are connected dirs to monitor
 	if( dirNames.empty() ){
-		cerr << "No directories to monitor; exiting with error." << endl ;
-		return( 1 ) ;
+		cerr << "No directories to monitor; exiting with error." << endl;
+		return( 1 );
 	}
 	
-	int createsTriggered = 0 ; // a counter for the number of expected create events
-	runFam = true ; // enable the event loop
+	// Init session vars
+	createsTriggered = 0;
+	runFam = true; // enable the event loop
 	
+	// Begin monitor loop
 	while( runFam ){
-		if( 1 != FAMPending( fc ) ){
-			sleep( 2 ) ;
-			continue ;
+		if( 1 != FAMPending( fc ) ){ // No event pending, wait & continue
+			sleep( 2 );
+			continue;
 		}
-		int rc = FAMNextEvent( fc , fe ) ;
+		int rc = FAMNextEvent( fc , fe );
 		if( 1 != rc ){
-			cerr << "FAMNextEvent returned error" << endl ;
-			continue ;
+			cerr << "FAMNextEvent returned error" << endl;
+			continue;
 		}
-		string* dir = reinterpret_cast< string* >( fe->userdata ) ;
-		string archfile = archive + fe->filename ;
-		string fname = fe->filename ;
+		string* dir = reinterpret_cast< string* >( fe->userdata );
+		string fname = fe->filename;
+		cout << "Event in " << *dir << "on file " << fname << endl;
 		
-		if( archive == *dir ){ //TODO change this to check list of archiveDirs (add loop and flag)
-			if( fe->code == FAMChanged || fe->code == FAMCreated || fe->code == FAMDeleted ){
-				//update list.txt in req dir //TODO move this to method updateList( listfname, archive )
-				string update( "ls " );
-				update = update + archive + " > " + request + listfname; //TODO concatenate all the different archive dirs together
-				system( update.c_str() );
-				createsTriggered += 1;
-				cout << createsTriggered << " creates triggered" << endl;
+		if( request == *dir ){ // Event in req dir
+			if(fname == listfname) { // Hey! no changing this file
+				updateList();
+			}
+			else if( fe->code == FAMCreated ){ // In the req dir we only really care about create events
+				if(createsTriggered > 0) { // Skip self-triggered events
+					createsTriggered -= 1;
+					cout << " Skipping self-triggered create. " << createsTriggered << " selfies left: " << endl;
+				}
+				else {
+					cout << " Registering file as request" << endl;
+					string archfile = archive + fe->filename; //TODO loop through all archive directories to find the right "archfile"
+					if( 0 != access(  archfile.c_str() , F_OK ) ){
+						cerr << archfile << " file access problem";
+					}
+					system( ("cp -f " + archfile + " " + request + fname).c_str() );
+					createsTriggered += 1;
+					cout << createsTriggered << " creates triggered" << endl;
+				}
 			}
 		}
-		else { //if not archive dir assume request dir
-			if( fe->code == FAMCreated ){ // we only care about creation events in the req dir
-				if(createsTriggered > 0) { //skip self triggered events
-					createsTriggered -= 1;
-					cout << " skipped create. creates left: " << createsTriggered << endl ;
-					continue;
-				}
-				if(fname == listfname) { //hey! no changing this file
-					//TODO call updateList( listfname, archive )
-					continue; //TODO 
-				}
-				cout << "DIR: request ";
-				cout << "CREATED " ;
-				cout << "Event on watched dir \"" << *dir << "\", file \"" << fname << "\" : " ;
-				cout << "file was created" ;
-				cout << endl ;
-				
-				if( 0 != access(  archfile.c_str() , F_OK ) ){
-					cerr << archfile << " file access problem" ;
-				}
-				system( ("cp -f " + archfile + " " + request + fname).c_str() );
-				createsTriggered += 1;
-				cout << createsTriggered << " creates triggered" << endl;
+		else { // Otherwise this is an archive dir; simply update the list
+			if( fe->code == FAMChanged || fe->code == FAMCreated || fe->code == FAMDeleted ){ //TODO Is this check necessary?
+				updateList();
 			}
 		}
 	} //while( runFam )
@@ -184,31 +186,32 @@ int main( const int argc , const char** argv ){
 	// cleanup
 
 	for(
-		RequestList::const_iterator ix( requests.begin() ) , stop( requests.end() ) ;
-		ix != stop ;
+		RequestList::const_iterator ix( requests.begin() ) , stop( requests.end() );
+		ix != stop;
 		++ix
 	){
-		cout << "[Cancelling monitor for FAMRequest " << (*ix)->reqnum << "]" << endl ;
-		FAMCancelMonitor( fc , *ix ) ;
-		delete( *ix ) ;
+		cout << "[Cancelling monitor for FAMRequest " << (*ix)->reqnum << "]" << endl;
+		FAMCancelMonitor( fc , *ix );
+		delete( *ix );
 	}
 
-/*
+/* This doesnt need to be done since all of the strings in these lists are statically defined.
+ * Subject to change.
 	for(
-		DirList::const_iterator iy( dirNames.begin() ) , stop( dirNames.end() ) ;
-		iy != stop ;
+		DirList::const_iterator iy( dirNames.begin() ) , stop( dirNames.end() );
+		iy != stop;
 		++iy
 	){
-		cout << "deleting dir " << (*iy)->c_str() << endl ;
-		delete( *iy ) ;
+		cout << "deleting dir " << (*iy)->c_str() << endl;
+		delete( *iy );
 	}
 */
 	// disconnect from the FAM service
-	FAMClose( fc ) ;
-	delete( fe ) ;
-	delete( fc ) ;
+	FAMClose( fc );
+	delete( fe );
+	delete( fc );
 
-	return( 0 ) ;
+	return( 0 );
 
 } // main()
 
