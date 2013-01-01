@@ -30,9 +30,10 @@ extern "C" {
 using namespace std;
 
 // Local Environment variables
-string request("/home/devraj/Dropbox/poppins-handbag/"); //req dir
+string archive("/home/devraj/Archives/"); //default root archive dir
+string request("/home/devraj/Dropbox/poppins-handbag/"); //default req dir
+string dirfname("directories"); //file to read directories from if present
 string listfname("list.txt"); //filename for list in req dir
-string archive("/home/devraj/Archives/"); //root archive dir
 
 // Global program variables
 bool runFam = false; //bool for continuing to listen to fam connection
@@ -137,26 +138,32 @@ int main( const int argc , const char** argv ){
 		return( 1 );
 	}
 	
-	// Register the archive dir
+
+	// Register archive and request directories
+	if(0 == access(dirfname.c_str(), R_OK)){ // Load from file if available and overwrite defaults
+		cout << "Loading directories from file" << endl;
+		ifstream dirfile(dirfname.c_str());
+		getline(dirfile, archive); //dirfile >> archive;
+		getline(dirfile, request); //dirfile >> request;
+		dirfile.close();
+	}
 	cout << "Archive directory:" << endl;
 	if(0 != access(archive.c_str(), X_OK)){
-		cerr << "\t Cannot access (x) " << archive << endl;
+		cerr << " Cannot access (x) " << archive << endl;
 		return 1;
 	}
 	else {
 		registerDirectory( &archive, false );
 	}
-	
-	// Register the request dir
 	cout << "Request directory:" << endl;
 	if(0 != access(request.c_str(), X_OK)){
-		cerr << "\t Cannot access (x) " << archive << endl;
+		cerr << " Cannot access (x) " << request << endl;
 		return 1;
 	}
 	else {
 		registerDirectory( &request, false );
 	}
-	
+		
 	// Check to make sure there are connected dirs to monitor
 	if( requests.empty() ){
 		cerr << "No directories to monitor; exiting with error." << endl;
