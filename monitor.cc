@@ -142,6 +142,7 @@ int main( const int argc , const char** argv ){
 	cout << "Archive directory:" << endl;
 	if(0 != access(archive.c_str(), X_OK)){
 		cerr << "\t Cannot access (x) " << archive << endl;
+		return 1;
 	}
 	else {
 		registerDirectory( &archive, false );
@@ -151,6 +152,7 @@ int main( const int argc , const char** argv ){
 	cout << "Request directory:" << endl;
 	if(0 != access(request.c_str(), X_OK)){
 		cerr << "\t Cannot access (x) " << archive << endl;
+		return 1;
 	}
 	else {
 		registerDirectory( &request, false );
