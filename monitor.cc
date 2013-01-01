@@ -173,14 +173,13 @@ int main( const int argc , const char** argv ){
 		}
 		string* dir = reinterpret_cast< string* >( fe->userdata );
 		string fname = fe->filename;
-		cout << "Event in " << *dir << "on file " << fname;
-		cout << "\t" << fe->code <<  endl;
+		if( fe->code != 1){ // Ignore clutter of change events (they come in sets)
+			cout << "Event in " << *dir << "on file " << fname;
+			cout << "\t" << fe->code <<  endl;
+		}
 		
 		if( request == *dir ){ // Event in req dir
-			if(fname == listfname) {
-				//Simply ignore.
-			}
-			else if( fe->code == FAMCreated ){ // In the req dir we only really care about create events
+			if( fe->code == FAMCreated ){ // In the req dir we only really care about create events
 				if(createsTriggered > 0) { // Skip self-triggered events
 					createsTriggered -= 1;
 					cout << " Skipping self-triggered create. " << createsTriggered << " selfies left: " << endl;
