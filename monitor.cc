@@ -138,14 +138,23 @@ int main( const int argc , const char** argv ){
 		return( 1 );
 	}
 	
-	//TODO check for access to these directories:
 	// Register the archive dir
 	cout << "Archive directory:" << endl;
-	registerDirectory( &archive, false );
+	if(0 != access(archive.c_str(), X_OK)){
+		cerr << "\t Cannot access (x) " << archive << endl;
+	}
+	else {
+		registerDirectory( &archive, false );
+	}
 	
 	// Register the request dir
 	cout << "Request directory:" << endl;
-	registerDirectory( &request, false );
+	if(0 != access(request.c_str(), X_OK)){
+		cerr << "\t Cannot access (x) " << archive << endl;
+	}
+	else {
+		registerDirectory( &request, false );
+	}
 	
 	// Check to make sure there are connected dirs to monitor
 	if( requests.empty() ){
