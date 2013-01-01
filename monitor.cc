@@ -14,6 +14,8 @@
 #include<stdexcept>
 #include<functional>
 #include<iostream>
+#include<fstream>
+#include<dirent.h>
 #include<list>
 #include<errno.h>
 #include<stdlib.h>
@@ -89,11 +91,27 @@ void updateList(){
 	cout << "Updating the file list" << endl;
 	//TODO add note to this file about not changing it manually
 	
+	ofstream listf;
+	listf.open(request + listfname);
+	if(listf.is_open()){
+		listf << "List of archive directory contents:" << endl;
+		listf << "note: monitor will update this file automatically, ";
+		listf << "do not edit it manually" << endl;
+		
+		//TODO output archive dir contents into listf
+		
+		
+		listf.close();
+		updatedListEvent = true;
+	}
+	else {
+		cerr << "Error opening list file " << request << listfname << endl;
+	}
+	/*
 	string update( "ls " );
 	update = update + archive + " > " + request + listfname;
 	system( update.c_str() );
-	
-	updatedListEvent = true;
+	*/
 }
 
 int main( const int argc , const char** argv ){
