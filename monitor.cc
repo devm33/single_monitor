@@ -42,7 +42,6 @@ DirList dirNames; //list for watched directories for clean up
 typedef list< FAMRequest* > RequestList;
 RequestList requests; //list for fam request objs for clean up
 int createsTriggered; //counter for the number of expected create events
-//int updatedListEvents; code: RTW1 //counter for self-triggered list updates
 
 // System error method
 void checkStrerror( int error ){
@@ -94,7 +93,6 @@ void updateList(){
 		listf << "List of archive directory contents:" << endl;
 		listf << "note: monitor will update this file automatically, ";
 		listf << "do not edit it manually" << endl << endl;
-		//updatedListEvents += 3; code: RTW1
 		
 		DIR *dir;
 		struct dirent *cur;
@@ -103,7 +101,6 @@ void updateList(){
 			while((cur = readdir(dir)) != NULL){
 				if(cur->d_name[0] != '.'){
 					listf << cur->d_name << endl;
-					//updatedListEvents += 1; code: RTW1
 				}
 			}
 			closedir(dir);
@@ -113,7 +110,6 @@ void updateList(){
 		}
 		
 		listf.close();
-		//updatedListEvents += 1;
 	}
 	else {
 		cerr << "Error opening list file " << request << listfname << endl;
@@ -182,22 +178,7 @@ int main( const int argc , const char** argv ){
 		
 		if( request == *dir ){ // Event in req dir
 			if(fname == listfname) {
-				/* This wasnt a bad idea, but due to the unpredictable
-				 * nature of trying to count how many FAMChanged events
-				 * will be fired seeming to be impossible and there
-				 * being no neccessity it has been scraped.
-				 * code: RTW1
-				 * 
-				 * will be removed from next commit
-				if( updatedListEvents > 0 ) { // Self-triggered
-					cout << "Ignoring self-triggered list update event ";
-					updatedListEvents -= 1;
-					cout << updatedListEvents << " left" <<  endl;
-				}
-				else { // Hey! no changing this file
-					updateList();
-				}
-				*/
+				//Simply ignore.
 			}
 			else if( fe->code == FAMCreated ){ // In the req dir we only really care about create events
 				if(createsTriggered > 0) { // Skip self-triggered events
