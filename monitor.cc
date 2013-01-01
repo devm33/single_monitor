@@ -42,7 +42,7 @@ DirList dirNames; //list for watched directories for clean up
 typedef list< FAMRequest* > RequestList;
 RequestList requests; //list for fam request objs for clean up
 int createsTriggered; //counter for the number of expected create events
-bool updatedListEvent; //flag for self-triggered list update
+int updatedListEvents; //counter for self-triggered list updates
 
 // System error method
 void checkStrerror( int error ){
@@ -85,33 +85,39 @@ void registerDirectory( string* dir, bool cleanup ){
 }
 
 // Update the file list in the req dir
-//TODO change this method to use native cpp file handling rather than 
-//     system calls (to be cross os)
 void updateList(){
 	cout << "Updating the file list" << endl;
-	//TODO add note to this file about not changing it manually
-	
+
 	ofstream listf;
-	listf.open(request + listfname);
+	listf.open((request + listfname).c_str());
 	if(listf.is_open()){
 		listf << "List of archive directory contents:" << endl;
 		listf << "note: monitor will update this file automatically, ";
-		listf << "do not edit it manually" << endl;
+		listf << "do not edit it manually" << endl << endl;
+		updatedListEvents += 3;
 		
-		//TODO output archive dir contents into listf
-		
+		DIR *dir;
+		struct dirent *cur;
+		dir = opendir(archive.c_str());
+		if(dir != NULL){
+			while((cur = readdir(dir)) != NULL){
+				if(cur->d_name[0] != '.'){
+					listf << cur->d_name << endl;
+					updatedListEvents += 1;
+				}
+			}
+			closedir(dir);
+		}
+		else {
+			cerr << "Error opening archive dir " << archive << endl;
+		}
 		
 		listf.close();
-		updatedListEvent = true;
+		//updatedListEvents += 1;
 	}
 	else {
 		cerr << "Error opening list file " << request << listfname << endl;
 	}
-	/*
-	string update( "ls " );
-	update = update + archive + " > " + request + listfname;
-	system( update.c_str() );
-	*/
 }
 
 int main( const int argc , const char** argv ){
@@ -151,12 +157,12 @@ int main( const int argc , const char** argv ){
 		return( 1 );
 	}
 	
+	// Ensure list is up-to-date
+	updateList();
+	
 	// Init session vars
 	createsTriggered = 0;
 	runFam = true; // enable the event loop
-	
-	// Ensure list in req dir is accurate since we were offline
-	updateList();	
 	
 	// Begin monitor loop
 	while( runFam ){
@@ -171,12 +177,15 @@ int main( const int argc , const char** argv ){
 		}
 		string* dir = reinterpret_cast< string* >( fe->userdata );
 		string fname = fe->filename;
-		cout << "Event in " << *dir << "on file " << fname << endl;
+		cout << "Event in " << *dir << "on file " << fname;
+		cout << "\t" << fe->code <<  endl;
 		
 		if( request == *dir ){ // Event in req dir
-			if(fname == listfname) {
-				if( updatedListEvent ) { // Self-triggered
-					updatedListEvent = false;
+			if(fname == listfname && fe->code == FAMChanged) {
+				if( updatedListEvents > 0 ) { // Self-triggered
+					cout << "Ignoring self-triggered list update event ";
+					updatedListEvents -= 1;
+					cout << updatedListEvents << " left" <<  endl;
 				}
 				else { // Hey! no changing this file
 					updateList();
@@ -203,7 +212,7 @@ int main( const int argc , const char** argv ){
 			}
 		}
 		else { // Otherwise this is an archive dir; simply update the list
-			if( fe->code == FAMChanged || fe->code == FAMCreated || fe->code == FAMDeleted ){ //TODO Is this check necessary?
+			if( fe->code == FAMChanged || fe->code == FAMCreated || fe->code == FAMDeleted ){ //Skip the loading exists since we simply update the list once on startup
 				updateList();
 			}
 		}
