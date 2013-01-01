@@ -41,7 +41,6 @@ typedef list< string* > DirList;
 DirList dirNames; //list for watched directories for clean up
 typedef list< FAMRequest* > RequestList;
 RequestList requests; //list for fam request objs for clean up
-int createsTriggered; //counter for the number of expected create events
 
 // System error method
 void checkStrerror( int error ){
@@ -168,7 +167,6 @@ int main( const int argc , const char** argv ){
 	updateList();
 	
 	// Init session vars
-	createsTriggered = 0;
 	runFam = true; // enable the event loop
 	
 	// Begin monitor loop
@@ -191,22 +189,28 @@ int main( const int argc , const char** argv ){
 		
 		if( request == *dir ){ // Event in req dir
 			if( fe->code == FAMCreated ){ // In the req dir we only really care about create events
-				if(createsTriggered > 0) { // Skip self-triggered events
-					createsTriggered -= 1;
-					cout << " Skipping self-triggered create. " << createsTriggered << " selfies left: " << endl;
+				cout << " Registering file as request: " << fname << endl;
+				string archfile = archive + fe->filename;
+				if( 0 != access(  archfile.c_str() , F_OK ) ){ // Check existence
+					cout << "  Request invalid, file not found: " << archfile << endl;
+					ofstream dest((request+fname).c_str());
+					dest << "File not found" << endl;
+					dest.close();
 				}
-				else { // Respond to request
-					cout << " Registering file as request" << endl;
-					string archfile = archive + fe->filename;
-					if( 0 != access(  archfile.c_str() , F_OK ) ){
-						cerr << archfile << " file access problem";
-					}
-					
-					//TODO change this to native cpp
-					system( ("cp -f " + archfile + " " + request + fname).c_str() );
-					
-					createsTriggered += 1;
-					cout << createsTriggered << " creates triggered" << endl;
+				else if( 0 != access(  archfile.c_str() , R_OK ) ){ // Check access
+					cerr << archfile << " File access problem: " << archfile << endl;
+					ofstream dest((request+fname).c_str());
+					dest << "File access problem" << endl;
+					dest.close();
+				}
+				else { // All signs go
+					cout <<  "  Valid, responding..." << endl;
+					ifstream src(archfile.c_str(), ios::binary);
+					ofstream dest((request+fname).c_str(), ios::binary);
+					dest << src.rdbuf();
+					dest.close();
+					src.close();
+					cout << "  Done." << endl;
 				}
 			}
 		}
