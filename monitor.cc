@@ -40,6 +40,7 @@ DirList dirNames; //list for watched directories for clean up
 typedef list< FAMRequest* > RequestList;
 RequestList requests; //list for fam request objs for clean up
 int createsTriggered; //counter for the number of expected create events
+bool updatedListEvent; //flag for self-triggered list update
 
 // System error method
 void checkStrerror( int error ){
@@ -92,8 +93,7 @@ void updateList(){
 	update = update + archive + " > " + request + listfname;
 	system( update.c_str() );
 	
-	createsTriggered += 1;
-	cout << createsTriggered << " creates triggered" << endl;
+	updatedListEvent = true;
 }
 
 int main( const int argc , const char** argv ){
@@ -118,6 +118,7 @@ int main( const int argc , const char** argv ){
 		return( 1 );
 	}
 	
+	//TODO check for access to these directories:
 	// Register the archive dir
 	cout << "Archive directory:" << endl;
 	registerDirectory( &archive, false );
@@ -136,6 +137,9 @@ int main( const int argc , const char** argv ){
 	createsTriggered = 0;
 	runFam = true; // enable the event loop
 	
+	// Ensure list in req dir is accurate since we were offline
+	updateList();	
+	
 	// Begin monitor loop
 	while( runFam ){
 		if( 1 != FAMPending( fc ) ){ // No event pending, wait & continue
@@ -152,8 +156,13 @@ int main( const int argc , const char** argv ){
 		cout << "Event in " << *dir << "on file " << fname << endl;
 		
 		if( request == *dir ){ // Event in req dir
-			if(fname == listfname) { // Hey! no changing this file
-				updateList();
+			if(fname == listfname) {
+				if( updatedListEvent ) { // Self-triggered
+					updatedListEvent = false;
+				}
+				else { // Hey! no changing this file
+					updateList();
+				}
 			}
 			else if( fe->code == FAMCreated ){ // In the req dir we only really care about create events
 				if(createsTriggered > 0) { // Skip self-triggered events
