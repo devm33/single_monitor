@@ -222,7 +222,9 @@ int main( const int argc , const char** argv ){
 			}
 		}
 		else { // Otherwise this is an archive dir; simply update the list
-			if( fe->code == FAMChanged || fe->code == FAMCreated || fe->code == FAMDeleted ){ //Skip the loading exists since we simply update the list once on startup
+			if( fe->code == FAMCreated || fe->code == FAMDeleted ){ 
+				// Note: only bother updating the list on deleted and created
+				//       because nothing else will change the file listing
 				updateList();
 			}
 		}
