@@ -28,9 +28,9 @@ extern "C" {
 using namespace std;
 
 // Local Environment variables
-string request("/home/devraj/Dropbox/cat-pictures/"); //req dir
+string request("/home/devraj/Dropbox/poppins-handbag/"); //req dir
 string listfname("list.txt"); //filename for list in req dir
-string archive("/home/devraj/Videos/"); //root archive dir
+string archive("/home/devraj/Archives/"); //root archive dir
 
 // Global program variables
 bool runFam = false; //bool for continuing to listen to fam connection
@@ -39,7 +39,6 @@ typedef list< string* > DirList;
 DirList dirNames; //list for watched directories for clean up
 typedef list< FAMRequest* > RequestList;
 RequestList requests; //list for fam request objs for clean up
-DirList archiveDirs; //list for the archive directories
 int createsTriggered; //counter for the number of expected create events
 
 // System error method
@@ -58,7 +57,7 @@ void sighandler_SIGINT( int sig ){
 }
 
 // Register a directory with fam
-void registerDirectory( string* dir ){
+void registerDirectory( string* dir, bool cleanup ){
 	FAMRequest* fr = new FAMRequest();
 	cout << "Registering directory \"" << *dir << "\" with FAM" << endl;
 	try{
@@ -68,7 +67,9 @@ void registerDirectory( string* dir ){
 		if( 0 != FAMMonitorDirectory( fc , dir->c_str() , fr , dir ) ){
 			throw( runtime_error( "problem registering directory with FAM" ) );
 		} else { // store for clean up
-			dirNames.push_back( dir );
+			if( cleanup ){
+				dirNames.push_back( dir );
+			}
 			requests.push_back( fr );
 		}
 	}catch( const runtime_error& e ){
@@ -81,11 +82,14 @@ void registerDirectory( string* dir ){
 }
 
 // Update the file list in the req dir
+//TODO change this method to use native cpp file handling rather than 
+//     system calls (to be cross os)
 void updateList(){
 	cout << "Updating the file list" << endl;
 	//TODO add note to this file about not changing it manually
+	
 	string update( "ls " );
-	update = update + archive + " > " + request + listfname; //TODO loop through all archive dirs
+	update = update + archive + " > " + request + listfname;
 	system( update.c_str() );
 	
 	createsTriggered += 1;
@@ -114,23 +118,16 @@ int main( const int argc , const char** argv ){
 		return( 1 );
 	}
 	
-	// Build watch list of archive directories
-	archiveDirs.push_back( &archive );
-	//TODO ^ recursive
-	
-	// Register the archive directories with fam
-	for(DirList::const_iterator ix( archiveDirs.begin() ) , stop( archiveDirs.end() ); ix != stop; ++ix){
-		registerDirectory( reinterpret_cast< string* >( *ix ) );
-	}	
+	// Register the archive dir
+	cout << "Archive directory:" << endl;
+	registerDirectory( &archive, false );
 	
 	// Register the request dir
-	if( 1 == argc ){
-		cout << "Request directory:" << endl;
-		registerDirectory( &request );
-	}
+	cout << "Request directory:" << endl;
+	registerDirectory( &request, false );
 	
 	// Check to make sure there are connected dirs to monitor
-	if( dirNames.empty() ){
+	if( requests.empty() ){
 		cerr << "No directories to monitor; exiting with error." << endl;
 		return( 1 );
 	}
@@ -163,13 +160,16 @@ int main( const int argc , const char** argv ){
 					createsTriggered -= 1;
 					cout << " Skipping self-triggered create. " << createsTriggered << " selfies left: " << endl;
 				}
-				else {
+				else { // Respond to request
 					cout << " Registering file as request" << endl;
-					string archfile = archive + fe->filename; //TODO loop through all archive directories to find the right "archfile"
+					string archfile = archive + fe->filename;
 					if( 0 != access(  archfile.c_str() , F_OK ) ){
 						cerr << archfile << " file access problem";
 					}
+					
+					//TODO change this to native cpp
 					system( ("cp -f " + archfile + " " + request + fname).c_str() );
+					
 					createsTriggered += 1;
 					cout << createsTriggered << " creates triggered" << endl;
 				}
@@ -195,8 +195,6 @@ int main( const int argc , const char** argv ){
 		delete( *ix );
 	}
 
-/* This doesnt need to be done since all of the strings in these lists are statically defined.
- * Subject to change.
 	for(
 		DirList::const_iterator iy( dirNames.begin() ) , stop( dirNames.end() );
 		iy != stop;
@@ -205,7 +203,7 @@ int main( const int argc , const char** argv ){
 		cout << "deleting dir " << (*iy)->c_str() << endl;
 		delete( *iy );
 	}
-*/
+	
 	// disconnect from the FAM service
 	FAMClose( fc );
 	delete( fe );
